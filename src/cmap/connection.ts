@@ -131,6 +131,8 @@ export interface ConnectionOptions
   credentials?: MongoCredentials;
   connectTimeoutMS?: number;
   tls: boolean;
+  ziti: boolean;
+  zitiIdentity: string;
   keepAlive?: boolean;
   keepAliveInitialDelay?: number;
   noDelay?: boolean;

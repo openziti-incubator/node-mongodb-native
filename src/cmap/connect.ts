@@ -1,5 +1,7 @@
 import * as net from 'net';
 import * as tls from 'tls';
+import type { ZitiSocket } from '../ziti/ziti-socket';
+import * as ziti from '../ziti/ziti-socket';
 import { Connection, ConnectionOptions, CryptoConnection } from './connection';
 import {
   MongoNetworkError,
@@ -30,7 +32,7 @@ const FAKE_MONGODB_SERVICE_ID =
   process.env.FAKE_MONGODB_SERVICE_ID.toLowerCase() === 'true';
 
 /** @public */
-export type Stream = Socket | TLSSocket;
+export type Stream = Socket | TLSSocket | ZitiSocket;
 
 export function connect(options: ConnectionOptions, callback: Callback<Connection>): void {
   makeConnection(options, (err, socket) => {
@@ -312,6 +314,7 @@ const SOCKET_ERROR_EVENTS = new Set(SOCKET_ERROR_EVENT_LIST);
 
 function makeConnection(options: ConnectionOptions, _callback: CallbackWithType<AnyError, Stream>) {
   const useTLS = options.tls ?? false;
+  const useZiti = options.ziti ?? false;
   const keepAlive = options.keepAlive ?? true;
   const socketTimeoutMS = options.socketTimeoutMS ?? Reflect.get(options, 'socketTimeout') ?? 0;
   const noDelay = options.noDelay ?? true;
@@ -337,6 +340,10 @@ function makeConnection(options: ConnectionOptions, _callback: CallbackWithType<
       tlsSocket.disableRenegotiation();
     }
     socket = tlsSocket;
+  } else if (useZiti) {
+    const serviceName = options.hostAddress.host;
+    socket = new ziti.ZitiSocket(options);
+    socket.connect(0, String(serviceName));
   } else {
     socket = net.createConnection(parseConnectOptions(options));
   }
