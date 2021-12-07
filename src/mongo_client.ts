@@ -18,6 +18,7 @@ import {
   HostAddress
 } from './utils';
 import { connect, MONGO_CLIENT_EVENTS } from './operations/connect';
+import { zitiInit } from './ziti/ziti_init';
 import { PromiseProvider } from './promise_provider';
 import type { Logger, LoggerLevel } from './logger';
 import type { ReadConcern, ReadConcernLevel, ReadConcernLike } from './read_concern';
@@ -104,6 +105,10 @@ export type SupportedNodeConnectionOptions = SupportedTLSConnectionOptions &
  * @see https://docs.mongodb.com/manual/reference/connection-string
  */
 export interface MongoClientOptions extends BSONSerializeOptions, SupportedNodeConnectionOptions {
+  /** Enables or disables Ziti for the connection. */
+  ziti?: boolean;
+  /** Specifies the location of the Ziti Identity file */
+  zitiIdentityFile?: string;
   /** Specifies the name of the replica set, if the mongod is a member of a replica set. */
   replicaSet?: string;
   /** Enables or disables TLS/SSL for the connection. */
@@ -407,6 +412,26 @@ export class MongoClient extends TypedEventEmitter<MongoClientEvents> {
   }
 
   /**
+   * Perform Ziti initialization (i.e. load Identity and connect to Ziti Controller)
+   *
+   * @see docs.openziti.org/manual/reference/connection-string/
+   */
+  zitiInit(): Promise<MongoClient>;
+  zitiInit(callback: Callback<MongoClient>): void;
+  zitiInit(callback?: Callback<MongoClient>): Promise<MongoClient> | void {
+    if (callback && typeof callback !== 'function') {
+      throw new MongoInvalidArgumentError('Method `zitiInit` callback arg is not a function');
+    }
+
+    return maybePromise(callback, cb => {
+      zitiInit(this, this[kOptions], err => {
+        if (err) return cb(err);
+        cb(undefined, this);
+      });
+    });
+  }
+
+  /**
    * Connect to MongoDB using a url
    *
    * @see docs.mongodb.org/manual/reference/connection-string/
@@ -703,6 +728,10 @@ export interface MongoOptions
    *
    */
   tls: boolean;
+
+  ziti: boolean;
+  zitiIdentity: string;
+  zitiSDK: any;
 
   /**
    * Turn these options into a reusable connection URI

@@ -33,6 +33,7 @@ import { Logger, LoggerLevel } from './logger';
 import { PromiseProvider } from './promise_provider';
 import { Encrypter } from './encrypter';
 import { Compressor, CompressorName } from './cmap/wire_protocol/compression';
+import { Ziti } from './ziti/ziti';
 
 const VALID_TXT_RECORDS = ['authSource', 'replicaSet', 'loadBalanced'];
 
@@ -343,6 +344,18 @@ export function parseOptions(
       throw new MongoParseError('All values of tls/ssl must be the same.');
     }
   }
+
+  let zitiEnabled = false;
+  if (allOptions.has('ziti')) {
+    zitiEnabled = (allOptions.get('ziti') || []).map(getBoolean.bind(null, 'ziti'))[0];
+  }
+  if (zitiEnabled && !allOptions.has('zitiIdentityFile')) {
+    throw new MongoParseError('ziti option specified; must also specify zitiIdentityFile.');
+  }
+  if (!zitiEnabled && allOptions.has('zitiIdentityFile')) {
+    throw new MongoParseError('zitiIdentityFile option specified; must also specify ziti=true.');
+  }
+  mongoOptions.zitiSDK = Ziti;
 
   const unsupportedOptions = setDifference(
     allKeys,
@@ -1117,6 +1130,23 @@ export const OPTIONS = {
     default: 0,
     type: 'int'
   },
+  ziti: {
+    type: 'boolean'
+  },
+  zitiIdentityFile: {
+    // type: 'string',
+    target: 'zitiIdentity',
+    transform({ values: [value] }) {
+      if (Ziti.ziti_hello() !== 'ziti') {
+        throw new MongoParseError(`ziti-sdk-nodejs malfunction`);
+      }
+      if (fs.existsSync(String(value))) {
+        return value;
+      } else {
+        throw new MongoParseError(`zitiIdentityFile [${value}] does not exist`);
+      }
+    }
+  },
   // Custom types for modifying core behavior
   connectionType: { type: 'any' },
   srvPoller: { type: 'any' },
@@ -1146,6 +1176,7 @@ export const OPTIONS = {
   pfx: { type: 'any' },
   secureProtocol: { type: 'any' },
   index: { type: 'any' },
+  zitiIdentity: { type: 'any' },
   // Legacy Options, these are unused but left here to avoid errors with CSFLE lib
   useNewUrlParser: { type: 'boolean' } as OptionDescriptor,
   useUnifiedTopology: { type: 'boolean' } as OptionDescriptor
